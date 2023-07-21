@@ -9,16 +9,16 @@ dependencies:
   - anarci == 2020.04.23
   - hmmer >= 3.1
   - pip:
-    - click >= 7
-    - pandas
+    - click == 8.1.6
+    - pandas == 2.0.3
     - sqlalchemy < 2
-    - flask
-    - redis
-    - celery
-    - biopython
-    - pytest
-    - requests
-    - tqdm
-    - xlsxwriter
-    - humanize
+    - flask == 2.3.2
+    - redis == 4.6.0
+    - celery == 5.3.1
+    - biopython == 1.81
+    - pytest == 7.4.0
+    - requests == 2.31.0
+    - tqdm == 4.65.0
+    - xlsxwriter == 3.1.2
+    - humanize == 4.7.0
     - sapiens >= 1.0.4
