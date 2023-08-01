@@ -6,7 +6,7 @@ import itertools
 import subprocess
 import numpy as np
 from io import StringIO
-from typing import List, Tuple
+from typing import Generator, Iterable, Iterator, List, Optional, Tuple, Union
 from Bio import SeqIO
 from abnumber import Chain
 import re
@@ -15,7 +15,7 @@ import re
 AMINO_ACIDS_INCLUDING_X = frozenset(list('ACDEFGHIKLMNPQRSTVWXY'))
 
 
-def sanitize_sequence(seq):
+def sanitize_sequence(seq: str) -> str:
     # remove whitespace
     seq = ''.join(seq.split())
     # remove stop codon at the end
@@ -24,11 +24,11 @@ def sanitize_sequence(seq):
     return seq
 
 
-def is_valid_amino_acid_sequence(seq):
+def is_valid_amino_acid_sequence(seq: str) -> bool:
     return all(aa in AMINO_ACIDS_INCLUDING_X for aa in seq)
 
 
-def parse_plaintext_records(text) -> List[SeqRecord]:
+def parse_plaintext_records(text: str) -> List[SeqRecord]:
     text = text.strip()
     if not text:
         return []
@@ -40,7 +40,7 @@ def parse_plaintext_records(text) -> List[SeqRecord]:
     return records
 
 
-def iterate_fasta_index(records, idx):
+def iterate_fasta_index(records: List[SeqRecord], idx: np.ndarray) -> Generator[SeqRecord, None, None]:
     for i, record in enumerate(records):
         if i == idx[0]:
             yield record
@@ -49,7 +49,7 @@ def iterate_fasta_index(records, idx):
                 break
 
 
-def iterate_single_fasta(path, limit=None, random=False, random_sample_from_limit=None):
+def iterate_single_fasta(path: str, limit: Optional[int]=None, random: bool=False, random_sample_from_limit: Optional[int]=None) -> Iterable[SeqRecord]:
     records = SeqIO.parse(path, 'fasta')
     if limit == 0:
         return []
@@ -71,7 +71,7 @@ def iterate_single_fasta(path, limit=None, random=False, random_sample_from_limi
     return records
 
 
-def iterate_fasta(paths, limit=None, random=False, random_sample_from_limit=None):
+def iterate_fasta(paths: List[str], limit: Optional[int]=None, random: bool=False, random_sample_from_limit: Optional[int]=None) -> Generator[SeqRecord, None, None]:
     """
     Iterate through fasta sequence file(s), return generator of records
     """
@@ -83,11 +83,11 @@ def iterate_fasta(paths, limit=None, random=False, random_sample_from_limit=None
             yield record
 
 
-def download_pdb(pdb_id):
+def download_pdb(pdb_id: str) -> bytes:
     return urllib.request.urlopen(f'https://files.rcsb.org/download/{pdb_id.strip()}.pdb').read()
 
 
-def looks_like_antibody_heavy_chain(seq):
+def looks_like_antibody_heavy_chain(seq: Union[str, Seq]) -> bool:
     """Return True if sequence looks like an antibody heavy chain, False if it looks like a light chain
 
     Throws ChainParseError if sequence is not an antibody chain
@@ -103,7 +103,7 @@ def looks_like_antibody_heavy_chain(seq):
 DNA_SEQ_REGEX = re.compile(r'[ACTGUNactgun]+')
 
 
-def looks_like_dna(seq):
+def looks_like_dna(seq: Union[str, Seq]) -> re.Match:
     if not isinstance(seq, str) and not isinstance(seq, Seq):
         raise NotImplementedError(f'Expected string or Seq, got {type(seq)}: {seq}')
     return DNA_SEQ_REGEX.fullmatch(str(seq))
@@ -118,13 +118,13 @@ def looks_like_dna(seq):
 PROTEIN_AMBIGUOUS_SEQ_REGEX = re.compile(r'[ABCDEFGHIJKLMNOPQRSTUVWXYZ]+')
 
 
-def looks_like_protein(seq):
+def looks_like_protein(seq: Union[str, Seq]) -> re.Match:
     if not isinstance(seq, str) and not isinstance(seq, Seq):
         raise NotImplementedError(f'Expected string or Seq, got {type(seq)}: {seq}')
     return PROTEIN_AMBIGUOUS_SEQ_REGEX.fullmatch(str(seq))
 
 
-def validate_dna(seq):
+def validate_dna(seq: Union[str, Seq]) -> None:
     if seq is None:
         return
     if not looks_like_dna(seq):
@@ -133,7 +133,7 @@ def validate_dna(seq):
         raise ValueError(f'DNA sequence contains invalid characters: "{seq}"')
 
 
-def validate_protein(seq):
+def validate_protein(seq: Union[str, Seq]) -> None:
     if seq is None:
         return
     if not looks_like_protein(seq):
