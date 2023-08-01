@@ -1,14 +1,15 @@
 import sys
 import time
 from io import StringIO, BytesIO
-from typing import Dict, Optional, List, Union
+from typing import Any, Dict, Iterable, Optional, List, Tuple, Union
 from Bio import SeqIO
 from Bio.PDB import PDBParser
 from Bio.PDB.Chain import Chain as BioPdbChain
 from Bio.PDB.Model import Model
+from Bio.SeqRecord import SeqRecord
 from Bio.SeqUtils import seq1
 from abnumber import Chain as AbNumberChain, ChainParseError
-from flask import send_file, request, flash, current_app
+from flask import Response, send_file, request, flash, current_app
 from dataclasses import dataclass
 from werkzeug.datastructures import FileStorage
 import pandas as pd
@@ -41,10 +42,10 @@ class AntibodyPDB:
         model = self.get_model()
         return model[self.light_chain_name]
 
-    def get_heavy_sequence(self):
+    def get_heavy_sequence(self) -> str:
         return ''
 
-    def get_light_sequence(self):
+    def get_light_sequence(self) -> str:
         return ''
 
     def convert_heavy_positions(self, ab_chain: AbNumberChain) -> Dict[str, str]:
@@ -70,16 +71,16 @@ class AntibodyInput:
                 f'Invalid sequence for "{self.name}": "{self.light_protein_seq}"'
 
     @property
-    def safe_name(self):
+    def safe_name(self) -> str:
         return get_valid_filename(self.name)
 
     @classmethod
-    def from_pdb_id(cls, pdb_id):
+    def from_pdb_id(cls, pdb_id: str) -> Optional['AntibodyInput']:
         pdb_data = download_pdb(pdb_id).decode()
         return cls.from_pdb_data(pdb_data, name=pdb_id)
 
     @classmethod
-    def from_pdb_data(cls, pdb_data, name) -> Optional['AntibodyInput']:
+    def from_pdb_data(cls, pdb_data: str, name: str) -> Optional['AntibodyInput']:
         heavy_record, light_record = None, None
         for record in SeqIO.parse(StringIO(pdb_data), 'pdb-seqres'):
             try:
@@ -109,7 +110,7 @@ class AntibodyInput:
         )
 
 
-def read_antibody_input_request():
+def read_antibody_input_request() -> List[AntibodyInput]:
     input_mode = request.form.get('input_mode', 'single')
     if input_mode == 'single':
         vh = sanitize_sequence(request.form['vh'])
@@ -178,7 +179,7 @@ def convert_pdb_positions(pdb_chain: BioPdbChain, ab_chain: AbNumberChain) -> Di
     return positions
 
 
-def clean_extension(filename):
+def clean_extension(filename: str) -> str:
     """Return clean file extension
 
     - lowercase
@@ -198,7 +199,7 @@ def clean_extension(filename):
     return extension[1:]
 
 
-def clean_antibody_name(name):
+def clean_antibody_name(name: str) -> str:
     """Get clean antibody name from FASTA identifier
 
     - Remove chain type suffix such as "_VH" or "_VL"
@@ -209,7 +210,7 @@ def clean_antibody_name(name):
     return name
 
 
-def pair_antibody_records(records, verbose=False) -> (List[AntibodyInput], List[str], List[str]):
+def pair_antibody_records(records: List[SeqRecord], verbose: bool=False) -> Tuple[List[AntibodyInput], List[str], List[str]]:
     invalid_names = []
     duplicate_names = []
 
@@ -254,7 +255,7 @@ def pair_antibody_records(records, verbose=False) -> (List[AntibodyInput], List[
     return antibody_inputs, invalid_names, duplicate_names
 
 
-def parse_antibody_pdb_ids(pdb_ids):
+def parse_antibody_pdb_ids(pdb_ids: Iterable[str]):
     antibody_inputs = []
     invalid_names = []
     for pdb_id in pdb_ids:
@@ -269,7 +270,7 @@ def parse_antibody_pdb_ids(pdb_ids):
 def parse_antibody_inputs(seq_string: str,
                           files: List[Union[str, FileStorage]] = None,
                           pdb_ids: List[str] = None
-                          ) -> (List[AntibodyInput], List[str], List[str], List[str]):
+                          ) -> Tuple[List[AntibodyInput], List[str], List[str], List[str]]:
     files = files or []
     pdb_ids = pdb_ids or []
 
@@ -291,7 +292,7 @@ def parse_antibody_inputs(seq_string: str,
     )
 
 
-def read_file_contents(file: Union[str, FileStorage]):
+def read_file_contents(file: Union[str, FileStorage]) -> Tuple[str, str]:
     if isinstance(file, str):
         with open(file, 'r') as fp:
             contents = fp.read()
@@ -304,7 +305,7 @@ def read_file_contents(file: Union[str, FileStorage]):
     return contents, filename
 
 
-def parse_antibody_files(files: List[Union[str, FileStorage]], verbose=False) -> (List[AntibodyInput], List[str], List[str], List[str]):
+def parse_antibody_files(files: List[Union[str, FileStorage]], verbose: bool=False) -> Tuple[List[AntibodyInput], List[str], List[str], List[str]]:
     names = set()
     pdb_antibody_inputs = []
     pdb_invalid_names = []
@@ -345,7 +346,7 @@ def parse_antibody_files(files: List[Union[str, FileStorage]], verbose=False) ->
     )
 
 
-def chunk_list(lst, n) -> List[List]:
+def chunk_list(lst: List[Any], n: int) -> List[List]:
     """Yield successive n-sized chunks from lst."""
     if hasattr(lst, '__getitem__'):
         # Use slicing
@@ -363,7 +364,7 @@ def chunk_list(lst, n) -> List[List]:
             yield batch
 
 
-def send_text(text, name, extension='txt', timestamp=True):
+def send_text(text: str, name: str, extension: str='txt', timestamp: bool=True) -> Response:
     bytesio = BytesIO()
     bytesio.write(text.encode())
     bytesio.seek(0)
@@ -379,14 +380,14 @@ def send_text(text, name, extension='txt', timestamp=True):
     )
 
 
-def send_fasta(records, name, timestamp=True):
+def send_fasta(records: List[SeqRecord], name: str, timestamp: bool=True) -> Response:
     stringio = StringIO()
     SeqIO.write(records, stringio, 'fasta')
 
     return send_text(stringio.getvalue(), name=name, extension='fa', timestamp=timestamp)
 
 
-def shorten_sheet_names(names_orig, max_length=27, max_iter=25):
+def shorten_sheet_names(names_orig: List[str], max_length: int = 27, max_iter: int = 25) -> List[str]:
     suffixes = [0] * len(names_orig)
     names_final = [name[:max_length] for name in names_orig]
     iteration = 0
@@ -411,7 +412,7 @@ def shorten_sheet_names(names_orig, max_length=27, max_iter=25):
     return names_final
 
 
-def write_sheet(df, writer, sheet_name='Sheet1', index=True, **kwargs):
+def write_sheet(df: pd.DataFrame, writer: pd.ExcelWriter, sheet_name: str = 'Sheet1', index: bool = True, **kwargs) -> None:
     """
     Write df as an excel file to ExcelWriter, roughly similar to `df.to_excel` except that it handles
     `df` with MultiIndex columns and `index=False`.
@@ -460,7 +461,7 @@ def write_sheet(df, writer, sheet_name='Sheet1', index=True, **kwargs):
             sheet.write(df.columns.nlevels-1, i, name or '', header_format)
 
 
-def write_sheets(df_dict: Dict[str, pd.DataFrame], fd_or_path):
+def write_sheets(df_dict: Dict[str, pd.DataFrame], fd_or_path) -> None:
     writer = pd.ExcelWriter(fd_or_path, engine='xlsxwriter')
 
     sheet_names = shorten_sheet_names([sanitize_excel_sheet_name(n) for n in df_dict.keys()])
@@ -471,7 +472,7 @@ def write_sheets(df_dict: Dict[str, pd.DataFrame], fd_or_path):
     writer.close()
 
 
-def send_excel(df_dict: Dict[str, pd.DataFrame], name, timestamp=True):
+def send_excel(df_dict: Dict[str, pd.DataFrame], name: str, timestamp: bool=True) -> Response:
     output = BytesIO()
     write_sheets(df_dict, output)
     output.seek(0)
@@ -486,7 +487,7 @@ def send_excel(df_dict: Dict[str, pd.DataFrame], name, timestamp=True):
     )
 
 
-def sanitize_excel_sheet_name(name):
+def sanitize_excel_sheet_name(name: str) -> str:
     sanitized = name
     for char in '[]:*?/\\':
         sanitized = sanitized.replace(char, '_')
