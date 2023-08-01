@@ -176,7 +176,7 @@ class SchedulerProxy:
 scheduler: Scheduler = SchedulerProxy()
 
 
-def use_scheduler(name:):
+def use_scheduler(name: str):
     global scheduler
     if name == 'celery':
         scheduler.wrapped = CeleryScheduler()
