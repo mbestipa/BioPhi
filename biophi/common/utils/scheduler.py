@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 from celery import group
 from abc import ABC, abstractmethod
@@ -91,7 +91,7 @@ class CeleryScheduler(Scheduler):
 
 
 class SimpleInMemoryScheduler(Scheduler):
-    results = {}
+    results: Dict[str, Any] = {}
 
     def save_result(self, result):
         task_id = None

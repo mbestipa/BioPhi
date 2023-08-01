@@ -1,5 +1,5 @@
 import re
-from typing import Dict, Final
+from typing import Dict, Final, Tuple
 
 import click
 from biophi import __version__
@@ -60,6 +60,6 @@ def get_valid_filename(s: str) -> str:
     return re.sub(r'[^-._a-zA-Z0-9]', '', s)
 
 
-def human_size(bytes: int, units: str = (' bytes', 'kB', 'MB', 'GB', 'TB', 'PB', 'EB')) -> str:
+def human_size(bytes: int, units: Tuple[str, ...] = (' bytes', 'kB', 'MB', 'GB', 'TB', 'PB', 'EB')) -> str:
     """ Returns a human readable string representation of bytes """
     return str(bytes) + units[0] if bytes < 1024 else human_size(bytes >> 10, units[1:])

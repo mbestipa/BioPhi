@@ -103,7 +103,7 @@ def looks_like_antibody_heavy_chain(seq: Union[str, Seq]) -> bool:
 DNA_SEQ_REGEX = re.compile(r'[ACTGUNactgun]+')
 
 
-def looks_like_dna(seq: Union[str, Seq]) -> re.Match:
+def looks_like_dna(seq: Union[str, Seq]) -> Optional[re.Match]:
     if not isinstance(seq, str) and not isinstance(seq, Seq):
         raise NotImplementedError(f'Expected string or Seq, got {type(seq)}: {seq}')
     return DNA_SEQ_REGEX.fullmatch(str(seq))
@@ -118,7 +118,7 @@ def looks_like_dna(seq: Union[str, Seq]) -> re.Match:
 PROTEIN_AMBIGUOUS_SEQ_REGEX = re.compile(r'[ABCDEFGHIJKLMNOPQRSTUVWXYZ]+')
 
 
-def looks_like_protein(seq: Union[str, Seq]) -> re.Match:
+def looks_like_protein(seq: Union[str, Seq]) -> Optional[re.Match]:
     if not isinstance(seq, str) and not isinstance(seq, Seq):
         raise NotImplementedError(f'Expected string or Seq, got {type(seq)}: {seq}')
     return PROTEIN_AMBIGUOUS_SEQ_REGEX.fullmatch(str(seq))

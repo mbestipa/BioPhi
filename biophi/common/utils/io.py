@@ -1,7 +1,7 @@
 import sys
 import time
 from io import StringIO, BytesIO
-from typing import Any, Dict, Iterable, Optional, List, Tuple, Union
+from typing import Any, Dict, Generator, Iterable, Optional, List, Sequence, Tuple, Union, cast
 from Bio import SeqIO
 from Bio.PDB import PDBParser
 from Bio.PDB.Chain import Chain as BioPdbChain
@@ -9,9 +9,10 @@ from Bio.PDB.Model import Model
 from Bio.SeqRecord import SeqRecord
 from Bio.SeqUtils import seq1
 from abnumber import Chain as AbNumberChain, ChainParseError
-from flask import Response, send_file, request, flash, current_app
+from flask import send_file, request, flash, current_app
 from dataclasses import dataclass
 from werkzeug.datastructures import FileStorage
+from werkzeug.wrappers.response import Response
 import pandas as pd
 from werkzeug.utils import redirect
 
@@ -58,9 +59,9 @@ class AntibodyPDB:
 @dataclass
 class AntibodyInput:
     name: str
-    heavy_protein_seq: str
-    light_protein_seq: str
-    pdb: AntibodyPDB = None
+    heavy_protein_seq: Optional[str]
+    light_protein_seq: Optional[str]
+    pdb: Optional[AntibodyPDB] = None
 
     def __post_init__(self):
         if self.heavy_protein_seq is not None:
@@ -110,7 +111,7 @@ class AntibodyInput:
         )
 
 
-def read_antibody_input_request() -> List[AntibodyInput]:
+def read_antibody_input_request() -> Union[Response, List[AntibodyInput]]:
     input_mode = request.form.get('input_mode', 'single')
     if input_mode == 'single':
         vh = sanitize_sequence(request.form['vh'])
@@ -136,8 +137,8 @@ def read_antibody_input_request() -> List[AntibodyInput]:
 
     antibody_inputs, invalid_names, duplicate_names, unrecognized_files = parse_antibody_inputs(
         seq_string=request.form['sequence_text'],
-        pdb_ids=[pdb_id.strip() for pdb_id in request.form['pdb_ids'].replace(',', ' ').split() if pdb_id.strip()],
-        files=request.files.getlist("sequence_files[]")
+        files=request.files.getlist("sequence_files[]"),
+        pdb_ids=[pdb_id.strip() for pdb_id in request.form['pdb_ids'].replace(',', ' ').split() if pdb_id.strip()]
     )
 
     log_submission(
@@ -214,8 +215,8 @@ def pair_antibody_records(records: List[SeqRecord], verbose: bool=False) -> Tupl
     invalid_names = []
     duplicate_names = []
 
-    heavy_protein_seqs = {}
-    light_protein_seqs = {}
+    heavy_protein_seqs: Dict[str, str] = {}
+    light_protein_seqs: Dict[str, str] = {}
     for protein_record in tqdm(records, disable=not verbose, desc='Numbering chains'):
         name = clean_antibody_name(protein_record.id)
         if looks_like_dna(protein_record.seq):
@@ -268,8 +269,8 @@ def parse_antibody_pdb_ids(pdb_ids: Iterable[str]):
 
 
 def parse_antibody_inputs(seq_string: str,
-                          files: List[Union[str, FileStorage]] = None,
-                          pdb_ids: List[str] = None
+                          files: Optional[Sequence[Union[str, FileStorage]]] = None,
+                          pdb_ids: Optional[List[str]] = None
                           ) -> Tuple[List[AntibodyInput], List[str], List[str], List[str]]:
     files = files or []
     pdb_ids = pdb_ids or []
@@ -292,11 +293,11 @@ def parse_antibody_inputs(seq_string: str,
     )
 
 
-def read_file_contents(file: Union[str, FileStorage]) -> Tuple[str, str]:
+def read_file_contents(file: Union[str, FileStorage]) -> Tuple[str, Optional[str]]:
     if isinstance(file, str):
         with open(file, 'r') as fp:
             contents = fp.read()
-        filename = os.path.basename(file)
+        filename = cast(Optional[str],os.path.basename(file))
     elif isinstance(file, FileStorage):
         contents = file.stream.read().decode()
         filename = file.filename
@@ -305,7 +306,7 @@ def read_file_contents(file: Union[str, FileStorage]) -> Tuple[str, str]:
     return contents, filename
 
 
-def parse_antibody_files(files: List[Union[str, FileStorage]], verbose: bool=False) -> Tuple[List[AntibodyInput], List[str], List[str], List[str]]:
+def parse_antibody_files(files: Sequence[Union[str, FileStorage]], verbose: bool=False) -> Tuple[List[AntibodyInput], List[str], List[str], List[str]]:
     names = set()
     pdb_antibody_inputs = []
     pdb_invalid_names = []
@@ -316,9 +317,12 @@ def parse_antibody_files(files: List[Union[str, FileStorage]], verbose: bool=Fal
         if not file:
             continue
         contents, filename = read_file_contents(file)
-        extension = clean_extension(filename)
+        cleaned_filename = ""
+        if filename:
+            cleaned_filename = filename
+        extension = clean_extension(cleaned_filename)
         if extension in ['pdb']:
-            name = filename.split('.', 1)[0]
+            name = cleaned_filename.split('.', 1)[0]
             if name in names:
                 pdb_duplicate_names.append(name)
                 continue
@@ -334,7 +338,7 @@ def parse_antibody_files(files: List[Union[str, FileStorage]], verbose: bool=Fal
         elif extension in ['fa', 'fna', 'faa', 'fasta']:
             unpaired_records += list(SeqIO.parse(StringIO(contents), 'fasta'))
         else:
-            unrecognized_files.append(filename)
+            unrecognized_files.append(cleaned_filename)
 
     seq_antibody_inputs, seq_invalid_names, seq_duplicate_names = pair_antibody_records(unpaired_records, verbose=verbose)
 
@@ -346,7 +350,7 @@ def parse_antibody_files(files: List[Union[str, FileStorage]], verbose: bool=Fal
     )
 
 
-def chunk_list(lst: List[Any], n: int) -> List[List]:
+def chunk_list(lst: List[Any], n: int) -> Generator[List, None, None]:
     """Yield successive n-sized chunks from lst."""
     if hasattr(lst, '__getitem__'):
         # Use slicing
@@ -393,7 +397,7 @@ def shorten_sheet_names(names_orig: List[str], max_length: int = 27, max_iter: i
     iteration = 0
     while len(set(names_final)) < len(names_final) and iteration < max_iter:
         iteration += 1
-        used = {}
+        used: Dict[str,int] = {}
         for i, name in enumerate(names_final):
             if names_final.count(name) > 1:
                 number = used.get(name, 0) + 1
