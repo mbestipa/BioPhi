@@ -1,4 +1,5 @@
 import hashlib
+from typing import List
 
 from flask import current_app, request
 from sqlalchemy import create_engine
@@ -9,8 +10,10 @@ import time
 
 from sqlalchemy.exc import OperationalError
 
+from biophi.common.utils.io import AntibodyInput
 
-def get_stats(table='access_log', past_days=7):
+
+def get_stats(table: str='access_log', past_days: int=7) -> pd.DataFrame:
     e = get_engine()
     from_date = (datetime.datetime.now() - datetime.timedelta(days=past_days)).date()
     from_timestamp = time.mktime(from_date.timetuple())
@@ -22,7 +25,7 @@ def get_stats(table='access_log', past_days=7):
     return stats
 
 
-def log_submission(antibody_inputs, invalid_names, duplicate_names, unrecognized_files):
+def log_submission(antibody_inputs: List[AntibodyInput], invalid_names: List[str], duplicate_names: List[str], unrecognized_files: List[str]) -> None:
     if not current_app.config['STATS_DB_PATH']:
         return
     num_inputs_unpaired = sum((not i.heavy_protein_seq or not i.light_protein_seq) for i in antibody_inputs)
@@ -42,7 +45,7 @@ def log_submission(antibody_inputs, invalid_names, duplicate_names, unrecognized
     )
 
 
-def log_task_result(running_seconds=None, exception=None):
+def log_task_result(running_seconds=None, exception=None) -> None:
     if not current_app.config['STATS_DB_PATH']:
         return
     log_data(
@@ -54,7 +57,7 @@ def log_task_result(running_seconds=None, exception=None):
     )
 
 
-def log_access(exception=None):
+def log_access(exception=None) -> None:
     if not current_app.config['STATS_DB_PATH']:
         return
     log_data(
