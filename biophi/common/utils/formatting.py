@@ -1,14 +1,15 @@
 import re
+from typing import Dict, Final
 
 import click
 from biophi import __version__
 
 
-def spacer(length=60, **kwargs):
+def spacer(length: int = 60, **kwargs) -> None:
     click.echo('─' * length, **kwargs)
 
 
-def logo(sublogo=''):
+def logo(sublogo: str = '') -> None:
     logo = '''      __     ____  _       ____  _     _ 
   /| /  \   | __ )(_) ___ |  _ \| |__ (_)
  ( || [] )  |  _ \| |/ _ \| |_) | '_ \| |
@@ -24,7 +25,7 @@ def logo(sublogo=''):
     click.echo(err=True)
 
 
-AA_NAMES = {
+AA_NAMES: Final[Dict[str,str]] = {
     'A': 'Alanine',
     'R': 'Arginine',
     'N': 'Asparagine',
@@ -50,15 +51,15 @@ AA_NAMES = {
 }
 
 
-def aa_name(aa):
+def aa_name(aa: str) -> str:
     return AA_NAMES[aa]
 
 
-def get_valid_filename(s):
+def get_valid_filename(s: str) -> str:
     s = str(s).strip().replace(' ', '_')
     return re.sub(r'[^-._a-zA-Z0-9]', '', s)
 
 
-def human_size(bytes, units=(' bytes', 'kB', 'MB', 'GB', 'TB', 'PB', 'EB')):
+def human_size(bytes: int, units: str = (' bytes', 'kB', 'MB', 'GB', 'TB', 'PB', 'EB')) -> str:
     """ Returns a human readable string representation of bytes """
     return str(bytes) + units[0] if bytes < 1024 else human_size(bytes >> 10, units[1:])
