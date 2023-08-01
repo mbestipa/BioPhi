@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Callable, Optional, Tuple, Union
 
 from celery import group
 from abc import ABC, abstractmethod
@@ -12,27 +12,27 @@ class TaskNotFoundError(Exception):
 class Scheduler(ABC):
 
     @abstractmethod
-    def get_result(self, task_id, index=None, timeout=15):
+    def get_result(self, task_id: str, index: Optional[Union[int, str]]=None, timeout=15):
         pass
 
     @abstractmethod
-    def get_result_task_id(self, task_id, index):
+    def get_result_task_id(self, task_id: str, index: Union[int, str]):
         pass
 
     @abstractmethod
-    def get_results(self, task_id, timeout=15):
+    def get_results(self, task_id: str, timeout: int=15):
         pass
 
     @abstractmethod
-    def get_results_len(self, task_id):
+    def get_results_len(self, task_id: str):
         pass
 
     @abstractmethod
-    def are_results_ready(self, task_id):
+    def are_results_ready(self, task_id: str):
         pass
 
     @abstractmethod
-    def get_results_progress(self, task_id) -> Tuple[int, int, int]:
+    def get_results_progress(self, task_id: str) -> Tuple[int, int, int]:
         pass
 
     @abstractmethod
@@ -46,13 +46,13 @@ class Scheduler(ABC):
 
 class CeleryScheduler(Scheduler):
 
-    def get_celery_group_result(self, task_id):
+    def get_celery_group_result(self, task_id: str):
         group_result = celery.GroupResult.restore(task_id)
         if group_result is None:
             raise TaskNotFoundError(task_id)
         return group_result
 
-    def get_result(self, task_id, index=None, timeout=15):
+    def get_result(self, task_id: str, index: Optional[Union[int, str]]=None, timeout: int=15):
         if index is not None:
             assert int(index) > 0, f'Index is 1-indexed, got {index}'
             return self.get_celery_group_result(task_id)[int(index) - 1].get(timeout=timeout)
@@ -63,19 +63,19 @@ class CeleryScheduler(Scheduler):
             raise TaskNotFoundError(task_id)
         return async_result.get(timeout=timeout)
 
-    def get_result_task_id(self, task_id, index):
+    def get_result_task_id(self, task_id: str, index: Union[str, int]):
         return self.get_celery_group_result(task_id)[int(index) - 1].id
 
-    def get_results(self, task_id, timeout=15):
+    def get_results(self, task_id: str, timeout: int=15):
         return self.get_celery_group_result(task_id).join(timeout=timeout, propagate=False)
 
-    def get_results_len(self, task_id):
+    def get_results_len(self, task_id: str):
         return len(self.get_celery_group_result(task_id))
 
-    def are_results_ready(self, task_id):
+    def are_results_ready(self, task_id: str):
         return self.get_celery_group_result(task_id).ready()
 
-    def get_results_progress(self, task_id) -> Tuple[int, int, int]:
+    def get_results_progress(self, task_id: str) -> Tuple[int, int, int]:
         group_result = self.get_celery_group_result(task_id)
         num_running = sum(r.state == 'RUNNING' for r in group_result)
         return num_running, group_result.completed_count(), len(group_result)
@@ -100,7 +100,7 @@ class SimpleInMemoryScheduler(Scheduler):
         self.results[task_id] = result
         return task_id
 
-    def get_result(self, task_id, index=None, timeout=15):
+    def get_result(self, task_id: str, index=None, timeout: int=15):
         if task_id not in self.results:
             raise TaskNotFoundError(task_id)
         if index is not None:
@@ -108,21 +108,21 @@ class SimpleInMemoryScheduler(Scheduler):
             return self.get_result(self.results[task_id][int(index)-1])
         return self.results[task_id]
 
-    def get_result_task_id(self, task_id, index):
+    def get_result_task_id(self, task_id: str, index: Union[str, int]):
         task_ids = self.get_result(task_id)
         return task_ids[int(index)-1]
 
-    def get_results(self, task_id, timeout=15):
+    def get_results(self, task_id: str, timeout: int=15):
         task_ids = self.get_result(task_id)
         return [self.get_result(i) for i in task_ids]
 
-    def get_results_len(self, task_id):
+    def get_results_len(self, task_id: str):
         return len(self.get_result(task_id))
 
-    def are_results_ready(self, task_id):
+    def are_results_ready(self, task_id: str):
         return task_id in self.results
 
-    def get_results_progress(self, task_id) -> Tuple[int, int, int]:
+    def get_results_progress(self, task_id: str) -> Tuple[int, int, int]:
         # This should never be called because tasks are always ready
         raise NotImplementedError()
 
@@ -140,10 +140,10 @@ class NotInitializedScheduler(Scheduler):
     def throw(self):
         raise NotImplementedError('Scheduler not initialized')
 
-    def get_result_task_id(self, task_id, index):
+    def get_result_task_id(self, task_id: str, index):
         self.throw()
 
-    def get_results(self, task_id, timeout=15):
+    def get_results(self, task_id: str, timeout=15):
         self.throw()
 
     def are_results_ready(self, task_id):
@@ -158,10 +158,10 @@ class NotInitializedScheduler(Scheduler):
     def schedule_tasks(self, fun, inputs):
         self.throw()
 
-    def get_result(self, task_id, index=None, timeout=15):
+    def get_result(self, task_id: str, index=None, timeout=15):
         self.throw()
     
-    def get_results_len(self, task_id):
+    def get_results_len(self, task_id: str):
         self.throw()
 
 
@@ -176,7 +176,7 @@ class SchedulerProxy:
 scheduler: Scheduler = SchedulerProxy()
 
 
-def use_scheduler(name):
+def use_scheduler(name:):
     global scheduler
     if name == 'celery':
         scheduler.wrapped = CeleryScheduler()
